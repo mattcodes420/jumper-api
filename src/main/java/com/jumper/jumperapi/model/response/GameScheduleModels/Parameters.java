@@ -4,7 +4,7 @@ public class Parameters {
     private String league;
     private String date;
     private String season;
-
+    private String timezone;
     // Getters and Setters
 
     public String getLeague() {
@@ -29,5 +29,13 @@ public class Parameters {
 
     public void setSeason(String season) {
         this.season = season;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
     }
 }

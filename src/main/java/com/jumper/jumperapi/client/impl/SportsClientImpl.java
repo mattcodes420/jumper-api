@@ -2,6 +2,8 @@ package com.jumper.jumperapi.client.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jumper.jumperapi.client.SportsClient;
+import com.jumper.jumperapi.model.response.BookmakerModels.Bookmaker;
+import com.jumper.jumperapi.model.response.BookmakerResponse;
 import com.jumper.jumperapi.model.response.GameScheduleResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 
 @Component
 public class SportsClientImpl implements SportsClient {
@@ -30,6 +33,12 @@ public class SportsClientImpl implements SportsClient {
     @Value("${sports.season}") // Add constant season value (e.g., 2024-2025)
     private String season;
 
+    @Value("${sports.timezone}") // Add constant season value (e.g., 2024-2025)
+    private String timezone;
+
+    @Value("${sports.bookmaker}") // Add constant season value (e.g., 2024-2025)
+    private String bookmaker;
+
     @Autowired
     public SportsClientImpl(HttpClient httpClient, @Value("${sports.url}") String sportsUrl) {
         this.httpClient = httpClient;
@@ -39,7 +48,7 @@ public class SportsClientImpl implements SportsClient {
     @Override
     public GameScheduleResponse getScheduleByDate(String date) {
         // Construct the URL with the league, season, and date
-        String url = String.format("%s/games?league=%s&date=%s&season=%s", sportsUrl, league, date, season);
+        String url = String.format("%s/games?league=%s&date=%s&season=%s&timezone=%s", sportsUrl, league, date, season, timezone);
 
         // Create the GET request with authentication headers
         HttpRequest request = HttpRequest.newBuilder()
@@ -64,6 +73,60 @@ public class SportsClientImpl implements SportsClient {
             throw new RuntimeException("Error while fetching schedule", e);
         }
     }
+
+    @Override
+    public List<Bookmaker> getOddsByGameID(String id) {
+        // Construct the URL with the league, season, and date
+        String url = String.format("%s/odds?league=%s&season=%s&bookmaker=%s&game=%s", sportsUrl, league, season, bookmaker, id);
+
+        // Create the GET request with authentication headers
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("x-rapidapi-host", apiHost) // Add the host header
+                .header("x-rapidapi-key", apiKey)  // Add the API key header
+                .build();
+
+        try {
+            // Send the HTTP request and get the response
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // Log the raw response body to debug
+            System.out.println("Raw Response: " + response.body());
+
+            // Use ObjectMapper to parse the JSON response
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            // Directly map the 'response' array to a list of BookmakerResponse
+            BookmakerResponse[] bookmakerResponses = objectMapper.readValue(response.body(), BookmakerResponse[].class);
+
+            // Assuming there is at least one element in the response array
+            if (bookmakerResponses.length > 0) {
+                BookmakerResponse bookmakerResponse = bookmakerResponses[0];
+
+                // Extract the 'bookmakers' list directly
+                List<Bookmaker> bookmakers = bookmakerResponse.getBookmakers();
+
+                // Handle the bookmakers list
+                if (!bookmakers.isEmpty()) {
+                    Bookmaker bookmaker = bookmakers.get(0);
+                    System.out.println("Bookmaker Name: " + bookmaker.getName());
+                } else {
+                    System.out.println("No bookmakers found.");
+                }
+
+                return bookmakers;
+            } else {
+                System.out.println("No valid response data found.");
+                return new ArrayList<>();
+            }
+
+        } catch (Exception e) {
+            // Handle network or parsing errors
+            throw new RuntimeException("Error while fetching odds", e);
+        }
+    }
+
+
 
     private GameScheduleResponse parseJsonToGameSchedule(String jsonResponse) {
         try {
