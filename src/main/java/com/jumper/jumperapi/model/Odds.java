@@ -3,8 +3,10 @@ package com.jumper.jumperapi.model;
 public class Odds {
     private String moneylineHome;
     private String spreadHome;
+    private String spreadHomeOdds;
     private String moneylineAway;
     private String spreadAway;
+    private String spreadAwayOdds;
 
     public String getMoneylineHome() {
         return moneylineHome;
@@ -36,5 +38,21 @@ public class Odds {
 
     public void setSpreadAway(String spreadAway) {
         this.spreadAway = spreadAway;
+    }
+
+    public String getSpreadHomeOdds() {
+        return spreadHomeOdds;
+    }
+
+    public void setSpreadHomeOdds(String spreadHomeOdds) {
+        this.spreadHomeOdds = spreadHomeOdds;
+    }
+
+    public String getSpreadAwayOdds() {
+        return spreadAwayOdds;
+    }
+
+    public void setSpreadAwayOdds(String spreadAwayOdds) {
+        this.spreadAwayOdds = spreadAwayOdds;
     }
 }

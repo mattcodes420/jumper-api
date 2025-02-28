@@ -93,8 +93,7 @@ public class JumperServiceImpl implements JumperService {
                     .findFirst()
                     .ifPresentOrElse(
                             asianHandicapBet -> {
-                                odds.setSpreadHome(getOddForAsianHandicapBet(asianHandicapBet, "Home"));
-                                odds.setSpreadAway(getOddForAsianHandicapBet(asianHandicapBet, "Away"));
+                                getOddForAsianHandicapBet(asianHandicapBet, odds);
                             },
                             () -> {
                                 odds.setSpreadHome("N/A");
@@ -123,21 +122,73 @@ public class JumperServiceImpl implements JumperService {
                 .orElse("N/A");
     }
 
-    private String getOddForAsianHandicapBet(Bet bet, String value) {
-        List<Value> values = bet.getValues().stream()
-                .filter(valueOdd -> valueOdd.getValue().contains(value))
-                .toList();
+    private Odds getOddForAsianHandicapBet(Bet bet, Odds odds) {
+        List<Value> values = bet.getValues(); // Get the values for the bet
 
-        return values.stream()
-                .min(Comparator.comparingDouble(v -> {
-                    try {
-                        return Math.abs(Double.parseDouble(v.getOdd()) - 1.0);
-                    } catch (NumberFormatException e) {
-                        return Double.MAX_VALUE;
+        Value selectedHomeSpread = null;
+        Value selectedAwaySpread = null;
+        double smallestDifference = Double.MAX_VALUE; // Initialize with a large value
+
+        // Iterate over the values to find the most even spread odds
+        for (Value value : values) {
+            String betValue = value.getValue();
+            String betOdd = value.getOdd();
+
+            if (betOdd == null || betOdd.isEmpty()) {
+                continue; // Skip invalid odds
+            }
+
+            double odd = Double.parseDouble(betOdd); // Convert the odd to a double
+
+            // Look for the spread bet for Home (e.g., "Home 1", "Home 2")
+            if (betValue.startsWith("Home") && betValue.contains(" ")) {
+                // Extract the spread value (e.g., "1", "2" from "Home 1", "Home 2")
+                String spread = betValue.split(" ")[1]; // This will give us "1" or "2" etc.
+
+                // Find the corresponding Away bet for the same spread value (without the '+')
+                Value awayValue = findAwayBetForSpread(values, spread);
+                if (awayValue != null) {
+                    double awayOdd = Double.parseDouble(awayValue.getOdd());
+
+                    // Calculate the difference from 2.00 for both Home and Away odds
+                    double homeDifference = Math.abs(odd - 2.00);
+                    double awayDifference = Math.abs(awayOdd - 2.00);
+
+                    // If the combined difference is smaller than the smallest difference found so far, store it
+                    double totalDifference = homeDifference + awayDifference;
+                    if (totalDifference < smallestDifference) {
+                        smallestDifference = totalDifference;
+                        selectedHomeSpread = value;
+                        selectedAwaySpread = awayValue;
                     }
-                }))
-                .map(Value::getOdd)
-                .orElse("N/A");
+                } else {
+                    // Debugging: Log a message if no corresponding Away spread was found
+                    System.out.println("No matching Away spread found for: " + betValue);
+                }
+            }
+        }
+
+        // If we found a spread with the most even odds, set them to the Odds object
+        if (selectedHomeSpread != null && selectedAwaySpread != null) {
+            odds.setSpreadHome(selectedHomeSpread.getValue());
+            odds.setSpreadHomeOdds(selectedHomeSpread.getOdd());
+            odds.setSpreadAway(selectedAwaySpread.getValue());
+            odds.setSpreadAwayOdds(selectedAwaySpread.getOdd());
+        }
+
+        return odds;
     }
+
+    private Value findAwayBetForSpread(List<Value> values, String spread) {
+        // Look for the Away bet that corresponds to the spread value (without the '+' sign)
+        for (Value value : values) {
+            String valueStr = value.getValue();
+            if (valueStr.startsWith("Away") && valueStr.contains(" " + spread)) {
+                return value;
+            }
+        }
+        return null; // Return null if no matching Away bet is found
+    }
+
 
 }
