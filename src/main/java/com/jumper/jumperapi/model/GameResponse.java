@@ -3,9 +3,9 @@ package com.jumper.jumperapi.model;
 import com.jumper.jumperapi.model.response.GameScheduleModels.Game;
 
 public class GameResponse {
+    private Predictions predictions;
     private Odds odds;
     private Game game;
-    private Predictions predictions;
 
     public Odds getOdds() {
         return odds;
