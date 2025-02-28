@@ -53,34 +53,64 @@ public class JumperServiceImpl implements JumperService {
         return gameResponses;
     }
 
-    private Odds getOdds(Game game){
-        List<Bookmaker> bookmakers = sportsClient.getOddsByGameID(String.valueOf(game.getId()));
-        // Hardcoded to get one bookmaker every time
-        Bookmaker bookmaker = bookmakers.get(0);  // You might need to select which bookmaker you are using
-
-        // Find the 'Home/Away' bet (id = 2)
-        Bet homeAwayBet = bookmaker.getBets().stream()
-                .filter(bet -> bet.getId() == 2) // Home/Away bet
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Home/Away bet not found"));
-
-        // Find the 'Asian Handicap' bet (id = 3)
-        Bet asianHandicapBet = bookmaker.getBets().stream()
-                .filter(bet -> bet.getId() == 3) // Asian Handicap bet
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Asian Handicap bet not found"));
-
-
+    private Odds getOdds(Game game) {
         Odds odds = new Odds();
 
-        // Handling "Home/Away" bet
-        odds.setMoneylineHome(getOddForHomeAwayBet(homeAwayBet, "Home"));
-        odds.setMoneylineAway(getOddForHomeAwayBet(homeAwayBet, "Away"));
+        try {
+            List<Bookmaker> bookmakers = sportsClient.getOddsByGameID(String.valueOf(game.getId()));
 
-        // Handling "Asian Handicap" bet
-        // Find the "Home" and "Away" odds that are the closest
-        odds.setSpreadHome(getOddForAsianHandicapBet(asianHandicapBet, "Home"));
-        odds.setSpreadAway(getOddForAsianHandicapBet(asianHandicapBet, "Away"));
+            // Check if bookmakers list is empty
+            if (bookmakers == null || bookmakers.isEmpty()) {
+                // Set default values or return a default Odds object
+                odds.setMoneylineHome("N/A");
+                odds.setMoneylineAway("N/A");
+                odds.setSpreadHome("N/A");
+                odds.setSpreadAway("N/A");
+                return odds;
+            }
+
+            // Hardcoded to get one bookmaker every time
+            Bookmaker bookmaker = bookmakers.get(0);
+
+            // Find the 'Home/Away' bet (id = 2)
+            bookmaker.getBets().stream()
+                    .filter(bet -> bet.getId() == 2) // Home/Away bet
+                    .findFirst()
+                    .ifPresentOrElse(
+                            homeAwayBet -> {
+                                odds.setMoneylineHome(getOddForHomeAwayBet(homeAwayBet, "Home"));
+                                odds.setMoneylineAway(getOddForHomeAwayBet(homeAwayBet, "Away"));
+                            },
+                            () -> {
+                                odds.setMoneylineHome("N/A");
+                                odds.setMoneylineAway("N/A");
+                            }
+                    );
+
+            // Find the 'Asian Handicap' bet (id = 3)
+            bookmaker.getBets().stream()
+                    .filter(bet -> bet.getId() == 3) // Asian Handicap bet
+                    .findFirst()
+                    .ifPresentOrElse(
+                            asianHandicapBet -> {
+                                odds.setSpreadHome(getOddForAsianHandicapBet(asianHandicapBet, "Home"));
+                                odds.setSpreadAway(getOddForAsianHandicapBet(asianHandicapBet, "Away"));
+                            },
+                            () -> {
+                                odds.setSpreadHome("N/A");
+                                odds.setSpreadAway("N/A");
+                            }
+                    );
+        } catch (Exception e) {
+            // Log the error
+            System.err.println("Error getting odds for game " + game.getId() + ": " + e.getMessage());
+
+            // Set default values
+            odds.setMoneylineHome("N/A");
+            odds.setMoneylineAway("N/A");
+            odds.setSpreadHome("N/A");
+            odds.setSpreadAway("N/A");
+        }
 
         return odds;
     }
@@ -90,21 +120,24 @@ public class JumperServiceImpl implements JumperService {
                 .filter(valueOdd -> valueOdd.getValue().equals(value))
                 .map(Value::getOdd) // Extract the odd
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException(value + " odd not found"));
+                .orElse("N/A");
     }
 
-    // Helper method to find the most balanced odd for "Asian Handicap"
     private String getOddForAsianHandicapBet(Bet bet, String value) {
-        // Find the pair of odds with the smallest difference for the given "Home" or "Away"
         List<Value> values = bet.getValues().stream()
-                .filter(valueOdd -> valueOdd.getValue().contains(value)) // Filter Home or Away
+                .filter(valueOdd -> valueOdd.getValue().contains(value))
                 .toList();
 
-        // If there are multiple "Home" or "Away" odds, we need to pick the most even one
         return values.stream()
-                .min(Comparator.comparingDouble(v -> Math.abs(Double.parseDouble(v.getOdd()) - 1.0))) // Find the most even odds
-                .map(Value::getOdd) // Get the odd of the most even pair
-                .orElseThrow(() -> new RuntimeException("No valid odds found for " + value));
+                .min(Comparator.comparingDouble(v -> {
+                    try {
+                        return Math.abs(Double.parseDouble(v.getOdd()) - 1.0);
+                    } catch (NumberFormatException e) {
+                        return Double.MAX_VALUE;
+                    }
+                }))
+                .map(Value::getOdd)
+                .orElse("N/A");
     }
 
 }
