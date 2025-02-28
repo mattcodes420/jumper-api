@@ -1,5 +1,6 @@
 package com.jumper.jumperapi.client.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jumper.jumperapi.client.SportsClient;
 import com.jumper.jumperapi.model.response.BookmakerModels.Bookmaker;
@@ -91,38 +92,32 @@ public class SportsClientImpl implements SportsClient {
             // Send the HTTP request and get the response
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            //response.getClass().
-
-            // Log the raw response body to debug
-            //System.out.println("Raw Response: " + response.body());
-
-            // Use ObjectMapper to parse the JSON response
+            // Parse the response JSON to get the root object
             ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(response.body());
 
-            // Directly map the 'response' array to a list of BookmakerResponse
-            BookmakerResponse[] bookmakerResponses = objectMapper.readValue(response.body(), BookmakerResponse[].class);
+            // Extract the "response" array from the root object
+            JsonNode responseArray = rootNode.get("response");
 
-            // Assuming there is at least one element in the response array
-            if (bookmakerResponses.length > 0) {
-                BookmakerResponse bookmakerResponse = bookmakerResponses[0];
+            // Now deserialize the response array into BookmakerResponse objects
+            List<Bookmaker> bookmakers = new ArrayList<>();
+            if (responseArray != null && responseArray.isArray() && responseArray.size() > 0) {
+                // Get the first element in the response array
+                BookmakerResponse bookmakerResponse = objectMapper.treeToValue(
+                        responseArray.get(0), BookmakerResponse.class);
 
-                // Extract the 'bookmakers' list directly
-                List<Bookmaker> bookmakers = bookmakerResponse.getBookmakers();
+                // Extract the bookmakers list
+                bookmakers = bookmakerResponse.getBookmakers();
 
-                // Handle the bookmakers list
                 if (!bookmakers.isEmpty()) {
                     Bookmaker bookmaker = bookmakers.get(0);
                     System.out.println("Bookmaker Name: " + bookmaker.getName());
                 } else {
                     System.out.println("No bookmakers found.");
                 }
-
-                return bookmakers;
-            } else {
-                System.out.println("No valid response data found.");
-                return new ArrayList<>();
             }
 
+            return bookmakers;
         } catch (Exception e) {
             // Handle network or parsing errors
             throw new RuntimeException("Error while fetching odds", e);
