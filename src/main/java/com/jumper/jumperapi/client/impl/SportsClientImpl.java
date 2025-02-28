@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -90,8 +91,10 @@ public class SportsClientImpl implements SportsClient {
             // Send the HTTP request and get the response
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
+            //response.getClass().
+
             // Log the raw response body to debug
-            System.out.println("Raw Response: " + response.body());
+            //System.out.println("Raw Response: " + response.body());
 
             // Use ObjectMapper to parse the JSON response
             ObjectMapper objectMapper = new ObjectMapper();

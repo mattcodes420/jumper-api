@@ -5,6 +5,7 @@ import com.jumper.jumperapi.model.response.GameScheduleModels.Game;
 public class GameResponse {
     private Odds odds;
     private Game game;
+    private Predictions predictions;
 
     public Odds getOdds() {
         return odds;
@@ -20,5 +21,13 @@ public class GameResponse {
 
     public void setGame(Game game) {
         this.game = game;
+    }
+
+    public Predictions getPredictions() {
+        return predictions;
+    }
+
+    public void setPredictions(Predictions predictions) {
+        this.predictions = predictions;
     }
 }
