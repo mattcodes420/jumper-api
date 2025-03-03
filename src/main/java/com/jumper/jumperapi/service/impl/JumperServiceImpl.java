@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 public class JumperServiceImpl implements JumperService {
 
     private final SportsClient sportsClient;
+    private String NO_ODDS_AVAILABLE = "No odds currently available for this game";
 
     @Autowired
     public JumperServiceImpl(SportsClient sportsClient) {this.sportsClient = sportsClient;}
@@ -62,12 +63,12 @@ public class JumperServiceImpl implements JumperService {
             // Check if bookmakers list is empty
             if (bookmakers == null || bookmakers.isEmpty()) {
                 // Set default values or return a default Odds object
-                odds.setMoneylineHome("N/A");
-                odds.setMoneylineAway("N/A");
-                odds.setSpreadHome("N/A");
-                odds.setSpreadAway("N/A");
-                odds.setSpreadAwayOdds("N/A");
-                odds.setSpreadHomeOdds("N/A");
+                odds.setMoneylineHome(NO_ODDS_AVAILABLE);
+                odds.setMoneylineAway(NO_ODDS_AVAILABLE);
+                odds.setSpreadHome(NO_ODDS_AVAILABLE);
+                odds.setSpreadAway(NO_ODDS_AVAILABLE);
+                odds.setSpreadAwayOdds(NO_ODDS_AVAILABLE);
+                odds.setSpreadHomeOdds(NO_ODDS_AVAILABLE);
                 return odds;
             }
 
@@ -84,8 +85,8 @@ public class JumperServiceImpl implements JumperService {
                                 odds.setMoneylineAway(getOddForHomeAwayBet(homeAwayBet, "Away"));
                             },
                             () -> {
-                                odds.setMoneylineHome("N/A");
-                                odds.setMoneylineAway("N/A");
+                                odds.setMoneylineHome(NO_ODDS_AVAILABLE);
+                                odds.setMoneylineAway(NO_ODDS_AVAILABLE);
                             }
                     );
 
@@ -98,8 +99,8 @@ public class JumperServiceImpl implements JumperService {
                                 getOddForAsianHandicapBet(asianHandicapBet, odds);
                             },
                             () -> {
-                                odds.setSpreadHome("N/A");
-                                odds.setSpreadAway("N/A");
+                                odds.setSpreadHome(NO_ODDS_AVAILABLE);
+                                odds.setSpreadAway(NO_ODDS_AVAILABLE);
                             }
                     );
         } catch (Exception e) {
@@ -107,10 +108,10 @@ public class JumperServiceImpl implements JumperService {
             System.err.println("Error getting odds for game " + game.getId() + ": " + e.getMessage());
 
             // Set default values
-            odds.setMoneylineHome("N/A");
-            odds.setMoneylineAway("N/A");
-            odds.setSpreadHome("N/A");
-            odds.setSpreadAway("N/A");
+            odds.setMoneylineHome(NO_ODDS_AVAILABLE);
+            odds.setMoneylineAway(NO_ODDS_AVAILABLE);
+            odds.setSpreadHome(NO_ODDS_AVAILABLE);
+            odds.setSpreadAway(NO_ODDS_AVAILABLE);
         }
 
         return odds;
@@ -121,7 +122,7 @@ public class JumperServiceImpl implements JumperService {
                 .filter(valueOdd -> valueOdd.getValue().equals(value))
                 .map(Value::getOdd) // Extract the odd
                 .findFirst()
-                .orElse("N/A");
+                .orElse(NO_ODDS_AVAILABLE);
     }
 
     private Odds getOddForAsianHandicapBet(Bet bet, Odds odds) {
@@ -178,8 +179,8 @@ public class JumperServiceImpl implements JumperService {
             odds.setSpreadAwayOdds(selectedAwaySpread.getOdd());
         }
         else {
-            odds.setSpreadHomeOdds("N/A");
-            odds.setSpreadAway("N/A");
+            odds.setSpreadHomeOdds(NO_ODDS_AVAILABLE);
+            odds.setSpreadAway(NO_ODDS_AVAILABLE);
         }
 
         return odds;
