@@ -66,6 +66,8 @@ public class JumperServiceImpl implements JumperService {
                 odds.setMoneylineAway("N/A");
                 odds.setSpreadHome("N/A");
                 odds.setSpreadAway("N/A");
+                odds.setSpreadAwayOdds("N/A");
+                odds.setSpreadHomeOdds("N/A");
                 return odds;
             }
 
@@ -174,6 +176,10 @@ public class JumperServiceImpl implements JumperService {
             odds.setSpreadHomeOdds(selectedHomeSpread.getOdd());
             odds.setSpreadAway(selectedAwaySpread.getValue());
             odds.setSpreadAwayOdds(selectedAwaySpread.getOdd());
+        }
+        else {
+            odds.setSpreadHomeOdds("N/A");
+            odds.setSpreadAway("N/A");
         }
 
         return odds;
