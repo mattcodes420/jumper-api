@@ -34,7 +34,7 @@ COPY scripts/ .
 
 # Copy the start script
 WORKDIR /app
-COPY docker/start.sh .
+COPY start.sh .
 RUN chmod +x start.sh
 
 EXPOSE 8080
