@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  jumper:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./data:/app/data
