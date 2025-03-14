@@ -84,33 +84,90 @@ public class JumperServiceImpl implements JumperService {
         String homeTeamName = game.getTeams().getHome().getName();
         String awayTeamName = game.getTeams().getAway().getName();
 
-        // Try to find the best matching KenPom game based on team names
+        // Try to find the best matching KenPom game
         return kenPomGames.stream()
-                .filter(kenPomGame ->
-                        // Check if either home or away team matches in any combination
-                        (containsTeamName(kenPomGame.getTeamHome(), homeTeamName) &&
-                                containsTeamName(kenPomGame.getTeamAway(), awayTeamName)) ||
-                                (containsTeamName(kenPomGame.getTeamHome(), awayTeamName) &&
-                                        containsTeamName(kenPomGame.getTeamAway(), homeTeamName))
-                )
+                .filter(kenPomGame -> {
+                    String kenPomHome = kenPomGame.getTeamHome();
+                    String kenPomAway = kenPomGame.getTeamAway();
+
+                    if (kenPomHome == null || kenPomAway == null) {
+                        return false;
+                    }
+
+                    // Normalize team names for better matching
+                    String normalizedHomeTeam = normalizeTeamName(homeTeamName);
+                    String normalizedAwayTeam = normalizeTeamName(awayTeamName);
+                    String normalizedKenPomHome = normalizeTeamName(kenPomHome);
+                    String normalizedKenPomAway = normalizeTeamName(kenPomAway);
+
+                    // Check regular and flipped team configurations
+                    return (matchTeams(normalizedKenPomHome, normalizedHomeTeam) &&
+                            matchTeams(normalizedKenPomAway, normalizedAwayTeam)) ||
+                            (matchTeams(normalizedKenPomHome, normalizedAwayTeam) &&
+                                    matchTeams(normalizedKenPomAway, normalizedHomeTeam));
+                })
                 .findFirst()
                 .orElse(null);
     }
 
     /**
-     * Check if a team name from KenPom contains or matches a team name from the API
+     * Normalize team name by removing common suffixes and conference indicators.
      */
-    private boolean containsTeamName(String kenPomTeamName, String apiTeamName) {
-        if (kenPomTeamName == null || apiTeamName == null) {
-            return false;
+    private String normalizeTeamName(String teamName) {
+        if (teamName == null) return "";
+
+        // Convert to lowercase and trim
+        String normalized = teamName.toLowerCase().trim();
+
+        // Remove common suffixes like "Rams", "Bulldogs", etc.
+        int spaceIdx = normalized.lastIndexOf(' ');
+        if (spaceIdx > 0 && spaceIdx < normalized.length() - 1) {
+            String lastWord = normalized.substring(spaceIdx + 1);
+            // If last word appears to be a mascot/suffix, remove it
+            if (!lastWord.contains(".") && lastWord.length() > 2) {
+                normalized = normalized.substring(0, spaceIdx);
+            }
         }
 
-        // Normalize both names for comparison
-        String normalizedKenPom = kenPomTeamName.toLowerCase().replaceAll("\\s+", " ").trim();
-        String normalizedApi = apiTeamName.toLowerCase().replaceAll("\\s+", " ").trim();
+        // Remove conference designations like "B10-T", "ACC-T", etc.
+        normalized = normalized.replaceAll("\\s+[a-z0-9]+-t$", "");
 
-        // Check for exact match or if one contains the other
-        return normalizedKenPom.contains(normalizedApi) || normalizedApi.contains(normalizedKenPom);
+        return normalized;
+    }
+
+    /**
+     * Check if two team names match.
+     */
+    private boolean matchTeams(String team1, String team2) {
+        // Direct match
+        if (team1.equals(team2)) {
+            return true;
+        }
+
+        // Handle St. vs Saint variations
+        String processed1 = team1.replace("st.", "saint").replace("saint", "st");
+        String processed2 = team2.replace("st.", "saint").replace("saint", "st");
+
+        if (processed1.equals(processed2)) {
+            return true;
+        }
+
+        // Check if one name contains the core part of the other
+        String[] words1 = processed1.split("\\s+");
+        String[] words2 = processed2.split("\\s+");
+
+        // Get the most significant word (usually the first one, except for cases like "North Carolina")
+        String core1 = words1.length > 0 ? words1[words1.length > 1 ? 1 : 0] : "";
+        String core2 = words2.length > 0 ? words2[words2.length > 1 ? 1 : 0] : "";
+
+        // If core words are substantial (to avoid generic matches), check if they match
+        if (core1.length() > 3 && core2.length() > 3) {
+            return core1.equals(core2);
+        }
+
+        // One name substantially contains the other
+        return (processed1.length() > 4 && processed2.contains(processed1)) ||
+                (processed2.length() > 4 && processed1.contains(processed2));
     }
 
     /**

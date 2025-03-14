@@ -1,4 +1,4 @@
-﻿package com.jumper.jumperapi.service.impl;
+package com.jumper.jumperapi.service.impl;
 
 import com.jumper.jumperapi.model.KenPomGame;
 import com.jumper.jumperapi.service.KenPomDataService;
@@ -24,7 +24,9 @@ import java.util.stream.Stream;
 @Service
 public class KenPomDataServiceImpl implements KenPomDataService {
 
-    private static final String DATA_DIR = "/app/data";
+    // Only for local testing
+    private static final String DATA_DIR = "./data";  // Point to local folder
+    //private static final String DATA_DIR = "/app/data";
 
     /**
      * Gets KenPom game data for a specific date
@@ -62,8 +64,6 @@ public class KenPomDataServiceImpl implements KenPomDataService {
                 game.setComeback(parseDoubleOrNull(record.get("Comeback")));
                 game.setExcitement(parseDoubleOrNull(record.get("Excitement")));
                 game.setThrillScoreRank(parseIntOrNull(record.get("ThrillScoreRank")));
-                game.setExcitementRank(parseIntOrNull(record.get("ExcitementRank")));
-                game.setComebackRank(parseIntOrNull(record.get("ComebackRank")));
                 game.setMvp(record.get("MVP"));
                 game.setTournament(record.get("Tournament"));
                 game.setPossessions(parseDoubleOrNull(record.get("Possessions")));

@@ -1,4 +1,4 @@
-﻿package com.jumper.jumperapi.service;
+package com.jumper.jumperapi.service;
 
 import com.jumper.jumperapi.model.KenPomGame;
 
