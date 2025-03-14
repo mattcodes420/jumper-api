@@ -6,6 +6,7 @@ public class GameResponse {
     private Predictions predictions;
     private Odds odds;
     private Game game;
+    private KenPomGame kenPomGame;
 
     public Odds getOdds() {
         return odds;
@@ -29,5 +30,13 @@ public class GameResponse {
 
     public void setPredictions(Predictions predictions) {
         this.predictions = predictions;
+    }
+
+    public KenPomGame getKenPomGame() {
+        return kenPomGame;
+    }
+
+    public void setKenPomGame(KenPomGame kenPomGame) {
+        this.kenPomGame = kenPomGame;
     }
 }

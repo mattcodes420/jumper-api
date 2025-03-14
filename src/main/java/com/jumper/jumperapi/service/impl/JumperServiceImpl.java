@@ -2,7 +2,9 @@ package com.jumper.jumperapi.service.impl;
 
 import com.jumper.jumperapi.client.SportsClient;
 import com.jumper.jumperapi.model.GameResponse;
+import com.jumper.jumperapi.model.KenPomGame;
 import com.jumper.jumperapi.model.Odds;
+import com.jumper.jumperapi.model.Predictions;
 import com.jumper.jumperapi.model.response.BookmakerModels.Bet;
 import com.jumper.jumperapi.model.response.BookmakerModels.Bookmaker;
 import com.jumper.jumperapi.model.response.BookmakerModels.Value;
@@ -10,6 +12,7 @@ import com.jumper.jumperapi.model.response.BookmakerResponse;
 import com.jumper.jumperapi.model.response.GameScheduleModels.Game;
 import com.jumper.jumperapi.model.response.GameScheduleResponse;
 import com.jumper.jumperapi.service.JumperService;
+import com.jumper.jumperapi.service.KenPomDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -22,36 +25,126 @@ import java.util.stream.Collectors;
 public class JumperServiceImpl implements JumperService {
 
     private final SportsClient sportsClient;
+    private final KenPomDataService kenPomDataService;
     private String NO_ODDS_AVAILABLE = "No odds currently available for this game";
 
     @Autowired
-    public JumperServiceImpl(SportsClient sportsClient) {this.sportsClient = sportsClient;}
+    public JumperServiceImpl(SportsClient sportsClient, KenPomDataService kenPomDataService) {
+        this.sportsClient = sportsClient;
+        this.kenPomDataService = kenPomDataService;
+    }
 
     @Override
-    public List<GameResponse> getScheduleByDate(String date){
+    public List<GameResponse> getScheduleByDate(String date) {
         GameScheduleResponse response = sportsClient.getScheduleByDate(date);
         List<GameResponse> gameResponses = new ArrayList<>();
 
-        // Iterate over each game in the response, map it to a GameResponse, and collect them in the list
+        // Get KenPom data for this date
+        List<KenPomGame> kenPomGames = kenPomDataService.getKenPomGamesByDate(date);
+
+        // Iterate over each game in the response
         response.getResponse()
                 .forEach(game -> {
                     // Create a new GameResponse object for each game
                     GameResponse gameResponse = new GameResponse();
 
                     // Set the game details into the GameResponse object
-                    gameResponse.setGame(game); // Assuming GameResponse has a setGame() method
+                    gameResponse.setGame(game);
 
                     // Fetch the odds for the game
-                    Odds odds = getOdds(game); // Assuming getOdds is a method that fetches the odds for the game
+                    Odds odds = getOdds(game);
+                    gameResponse.setOdds(odds);
 
-                    // Set the odds in the GameResponse object
-                    gameResponse.setOdds(odds); // Assuming GameResponse has a setOdds() method
+                    // Find and set matching KenPom data if available
+                    KenPomGame matchingKenPomGame = findMatchingKenPomGame(game, kenPomGames);
+                    if (matchingKenPomGame != null) {
+                        gameResponse.setKenPomGame(matchingKenPomGame);
+
+                        // If we have KenPom data, we can also set predictions
+                        Predictions predictions = createPredictionsFromKenPom(matchingKenPomGame);
+                        gameResponse.setPredictions(predictions);
+                    }
 
                     // Add the GameResponse to the list
                     gameResponses.add(gameResponse);
                 });
 
         return gameResponses;
+    }
+
+    /**
+     * Find the matching KenPom game data for a given API game
+     */
+    private KenPomGame findMatchingKenPomGame(Game game, List<KenPomGame> kenPomGames) {
+        if (kenPomGames == null || kenPomGames.isEmpty()) {
+            return null;
+        }
+
+        // Get team names from the API Game object
+        String homeTeamName = game.getTeams().getHome().getName();
+        String awayTeamName = game.getTeams().getAway().getName();
+
+        // Try to find the best matching KenPom game based on team names
+        return kenPomGames.stream()
+                .filter(kenPomGame ->
+                        // Check if either home or away team matches in any combination
+                        (containsTeamName(kenPomGame.getTeamHome(), homeTeamName) &&
+                                containsTeamName(kenPomGame.getTeamAway(), awayTeamName)) ||
+                                (containsTeamName(kenPomGame.getTeamHome(), awayTeamName) &&
+                                        containsTeamName(kenPomGame.getTeamAway(), homeTeamName))
+                )
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Check if a team name from KenPom contains or matches a team name from the API
+     */
+    private boolean containsTeamName(String kenPomTeamName, String apiTeamName) {
+        if (kenPomTeamName == null || apiTeamName == null) {
+            return false;
+        }
+
+        // Normalize both names for comparison
+        String normalizedKenPom = kenPomTeamName.toLowerCase().replaceAll("\\s+", " ").trim();
+        String normalizedApi = apiTeamName.toLowerCase().replaceAll("\\s+", " ").trim();
+
+        // Check for exact match or if one contains the other
+        return normalizedKenPom.contains(normalizedApi) || normalizedApi.contains(normalizedKenPom);
+    }
+
+    /**
+     * Create predictions based on KenPom data
+     */
+    private Predictions createPredictionsFromKenPom(KenPomGame kenPomGame) {
+        Predictions predictions = new Predictions();
+
+        // Set moneyline prediction based on KenPom's predicted winner
+        if (kenPomGame.getPredictedWinner() != null && !kenPomGame.getPredictedWinner().isEmpty()) {
+            predictions.setMoneylinePrediction(kenPomGame.getPredictedWinner());
+        }
+
+        // Set spread prediction based on KenPom's predicted MOV
+        if (kenPomGame.getPredictedMOV() != null) {
+            // Get the team that's predicted to cover the spread
+            if (kenPomGame.getHomeSpread() != null && !kenPomGame.getHomeSpread().equals("N/A")) {
+                try {
+                    double predictedMOV = kenPomGame.getPredictedMOV();
+                    double homeSpread = Double.parseDouble(kenPomGame.getHomeSpread().replaceAll("[+]", ""));
+
+                    // If predicted MOV is greater than the spread, home team covers
+                    if (predictedMOV > homeSpread) {
+                        predictions.setSpreadPrediction(kenPomGame.getTeamHome());
+                    } else {
+                        predictions.setSpreadPrediction(kenPomGame.getTeamAway());
+                    }
+                } catch (NumberFormatException e) {
+                    // Skip spread prediction if we can't parse the values
+                }
+            }
+        }
+
+        return predictions;
     }
 
     private Odds getOdds(Game game) {
