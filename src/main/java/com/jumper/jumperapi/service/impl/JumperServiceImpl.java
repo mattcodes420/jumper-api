@@ -185,22 +185,22 @@ public class JumperServiceImpl implements JumperService {
         Double getPredictedMOV = kenPomGame.getPredictedMOV();
         Double getHomeSpread = Double.valueOf(odds.getSpreadHome());
         Double getAwaySpread = Double.parseDouble(odds.getSpreadAway());
-        Double getMoneylineHome = setImpliedOdds(Double.parseDouble(odds.getMoneylineHome()));
-        Double getMoneylineAway = setImpliedOdds(Double.parseDouble(odds.getMoneylineAway()));
+        Double getMoneylineHome = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineHome())) * 10.0) / 10.0;
+        Double getMoneylineAway = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineAway())) * 10.0) / 10.0;
         Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
 
         if (Objects.equals(homeTeam, kenPomGame.getPredictedWinner()))
         {
             if (getMoneylineHome < getPredictedWinProb)
             {
-                predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome);
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
             }
             else if (getMoneylineAway > (100 - getPredictedWinProb)){
                 predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
             }
             else
             {
-                predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway);
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
             }
 
             getPredictedMOV = -getPredictedMOV;
@@ -221,14 +221,14 @@ public class JumperServiceImpl implements JumperService {
         {
             if (getMoneylineAway < getPredictedWinProb)
             {
-                predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway);
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
             }
             else if (getMoneylineHome > (100 - getPredictedWinProb)){
                 predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
             }
             else
             {
-                predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome);
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
             }
 
             getPredictedMOV = -getPredictedMOV;
