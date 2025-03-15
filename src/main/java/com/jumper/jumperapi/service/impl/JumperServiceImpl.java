@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,9 +61,15 @@ public class JumperServiceImpl implements JumperService {
                     if (matchingKenPomGame != null) {
                         gameResponse.setKenPomGame(matchingKenPomGame);
 
+                        // Get the home and away teams from the game
+                        String homeTeam = game.getTeams().getHome().getName();
+                        String awayTeam = game.getTeams().getAway().getName();
                         // If we have KenPom data, we can also set predictions
-                        Predictions predictions = createPredictionsFromKenPom(matchingKenPomGame);
-                        gameResponse.setPredictions(predictions);
+                        if (!Objects.equals(odds.getMoneylineAway(), "No odds currently available for this game"))
+                        {
+                            Predictions predictions = createPredictionsFromKenPom(matchingKenPomGame, odds, homeTeam, awayTeam);
+                            gameResponse.setPredictions(predictions);
+                        }
                     }
 
                     // Add the GameResponse to the list
@@ -173,35 +180,81 @@ public class JumperServiceImpl implements JumperService {
     /**
      * Create predictions based on KenPom data
      */
-    private Predictions createPredictionsFromKenPom(KenPomGame kenPomGame) {
+    private Predictions createPredictionsFromKenPom(KenPomGame kenPomGame, Odds odds, String homeTeam, String awayTeam) {
         Predictions predictions = new Predictions();
+        Double getPredictedMOV = kenPomGame.getPredictedMOV();
+        Double getHomeSpread = Double.valueOf(odds.getSpreadHome());
+        Double getAwaySpread = Double.parseDouble(odds.getSpreadAway());
+        Double getMoneylineHome = setImpliedOdds(Double.parseDouble(odds.getMoneylineHome()));
+        Double getMoneylineAway = setImpliedOdds(Double.parseDouble(odds.getMoneylineAway()));
+        Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
 
-        // Set moneyline prediction based on KenPom's predicted winner
-        if (kenPomGame.getPredictedWinner() != null && !kenPomGame.getPredictedWinner().isEmpty()) {
-            predictions.setMoneylinePrediction(kenPomGame.getPredictedWinner());
-        }
-
-        // Set spread prediction based on KenPom's predicted MOV
-        if (kenPomGame.getPredictedMOV() != null) {
-            // Get the team that's predicted to cover the spread
-            if (kenPomGame.getHomeSpread() != null && !kenPomGame.getHomeSpread().equals("N/A")) {
-                try {
-                    double predictedMOV = kenPomGame.getPredictedMOV();
-                    double homeSpread = Double.parseDouble(kenPomGame.getHomeSpread().replaceAll("[+]", ""));
-
-                    // If predicted MOV is greater than the spread, home team covers
-                    if (predictedMOV > homeSpread) {
-                        predictions.setSpreadPrediction(kenPomGame.getTeamHome());
-                    } else {
-                        predictions.setSpreadPrediction(kenPomGame.getTeamAway());
-                    }
-                } catch (NumberFormatException e) {
-                    // Skip spread prediction if we can't parse the values
-                }
+        if (Objects.equals(homeTeam, kenPomGame.getPredictedWinner()))
+        {
+            if (getMoneylineHome < getPredictedWinProb)
+            {
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome);
             }
+            else if (getMoneylineAway > (100 - getPredictedWinProb)){
+                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
+            }
+            else
+            {
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway);
+            }
+
+            getPredictedMOV = -getPredictedMOV;
+            if (getPredictedMOV > getHomeSpread)
+            {
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + -getPredictedMOV);
+            }
+            else if (getPredictedMOV < getHomeSpread)
+            {
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + getPredictedMOV);
+            }
+            else
+            {
+                predictions.setSpreadPrediction("No spread value available");
+            }
+        }
+        else if (Objects.equals(awayTeam, kenPomGame.getPredictedWinner()))
+        {
+            if (getMoneylineAway < getPredictedWinProb)
+            {
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway);
+            }
+            else if (getMoneylineHome > (100 - getPredictedWinProb)){
+                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
+            }
+            else
+            {
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome);
+            }
+
+            getPredictedMOV = -getPredictedMOV;
+            if (getPredictedMOV > getAwaySpread)
+            {
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + -getPredictedMOV);
+            }
+            else if (getPredictedMOV < getAwaySpread)
+            {
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + getPredictedMOV);
+            }
+            else
+            {
+                predictions.setSpreadPrediction("No spread value available");
+            }
+        }
+        else
+        {
+            predictions.setSpreadPrediction("No spread value available");
         }
 
         return predictions;
+    }
+
+    private Double setImpliedOdds(double odds) {
+        return 1 / odds * 100;
     }
 
     private Odds getOdds(Game game) {
@@ -277,6 +330,8 @@ public class JumperServiceImpl implements JumperService {
 
     private Odds getOddForAsianHandicapBet(Bet bet, Odds odds) {
         List<Value> values = bet.getValues(); // Get the values for the bet
+        Double getMoneylineHome = setImpliedOdds(Double.parseDouble(odds.getMoneylineHome()));
+        Double getMoneylineAway = setImpliedOdds(Double.parseDouble(odds.getMoneylineAway()));
 
         Value selectedHomeSpread = null;
         Value selectedAwaySpread = null;
@@ -323,6 +378,15 @@ public class JumperServiceImpl implements JumperService {
 
         // If we found a spread with the most even odds, set them to the Odds object
         if (selectedHomeSpread != null && selectedAwaySpread != null) {
+            double spreadNumber = Double.parseDouble(selectedHomeSpread.getValue().split(" ")[1]);
+            if (getMoneylineHome >= getMoneylineAway) {
+                selectedHomeSpread.setValue(String.valueOf(+spreadNumber));
+                selectedAwaySpread.setValue(String.valueOf(-spreadNumber));
+            }
+            else {
+                selectedHomeSpread.setValue(String.valueOf(-spreadNumber));
+                selectedAwaySpread.setValue(String.valueOf(+spreadNumber));
+            }
             odds.setSpreadHome(selectedHomeSpread.getValue());
             odds.setSpreadHomeOdds(selectedHomeSpread.getOdd());
             odds.setSpreadAway(selectedAwaySpread.getValue());
