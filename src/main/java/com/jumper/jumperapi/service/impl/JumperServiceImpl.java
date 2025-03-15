@@ -2,7 +2,9 @@ package com.jumper.jumperapi.service.impl;
 
 import com.jumper.jumperapi.client.SportsClient;
 import com.jumper.jumperapi.model.GameResponse;
+import com.jumper.jumperapi.model.KenPomGame;
 import com.jumper.jumperapi.model.Odds;
+import com.jumper.jumperapi.model.Predictions;
 import com.jumper.jumperapi.model.response.BookmakerModels.Bet;
 import com.jumper.jumperapi.model.response.BookmakerModels.Bookmaker;
 import com.jumper.jumperapi.model.response.BookmakerModels.Value;
@@ -10,48 +12,249 @@ import com.jumper.jumperapi.model.response.BookmakerResponse;
 import com.jumper.jumperapi.model.response.GameScheduleModels.Game;
 import com.jumper.jumperapi.model.response.GameScheduleResponse;
 import com.jumper.jumperapi.service.JumperService;
+import com.jumper.jumperapi.service.KenPomDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
 public class JumperServiceImpl implements JumperService {
 
     private final SportsClient sportsClient;
+    private final KenPomDataService kenPomDataService;
     private String NO_ODDS_AVAILABLE = "No odds currently available for this game";
 
     @Autowired
-    public JumperServiceImpl(SportsClient sportsClient) {this.sportsClient = sportsClient;}
+    public JumperServiceImpl(SportsClient sportsClient, KenPomDataService kenPomDataService) {
+        this.sportsClient = sportsClient;
+        this.kenPomDataService = kenPomDataService;
+    }
 
     @Override
-    public List<GameResponse> getScheduleByDate(String date){
+    public List<GameResponse> getScheduleByDate(String date) {
         GameScheduleResponse response = sportsClient.getScheduleByDate(date);
         List<GameResponse> gameResponses = new ArrayList<>();
 
-        // Iterate over each game in the response, map it to a GameResponse, and collect them in the list
+        // Get KenPom data for this date
+        List<KenPomGame> kenPomGames = kenPomDataService.getKenPomGamesByDate(date);
+
+        // Iterate over each game in the response
         response.getResponse()
                 .forEach(game -> {
                     // Create a new GameResponse object for each game
                     GameResponse gameResponse = new GameResponse();
 
                     // Set the game details into the GameResponse object
-                    gameResponse.setGame(game); // Assuming GameResponse has a setGame() method
+                    gameResponse.setGame(game);
 
                     // Fetch the odds for the game
-                    Odds odds = getOdds(game); // Assuming getOdds is a method that fetches the odds for the game
+                    Odds odds = getOdds(game);
+                    gameResponse.setOdds(odds);
 
-                    // Set the odds in the GameResponse object
-                    gameResponse.setOdds(odds); // Assuming GameResponse has a setOdds() method
+                    // Find and set matching KenPom data if available
+                    KenPomGame matchingKenPomGame = findMatchingKenPomGame(game, kenPomGames);
+                    if (matchingKenPomGame != null) {
+                        gameResponse.setKenPomGame(matchingKenPomGame);
+
+                        // Get the home and away teams from the game
+                        String homeTeam = game.getTeams().getHome().getName();
+                        String awayTeam = game.getTeams().getAway().getName();
+                        // If we have KenPom data, we can also set predictions
+                        if (!Objects.equals(odds.getMoneylineAway(), "No odds currently available for this game"))
+                        {
+                            Predictions predictions = createPredictionsFromKenPom(matchingKenPomGame, odds, homeTeam, awayTeam);
+                            gameResponse.setPredictions(predictions);
+                        }
+                    }
 
                     // Add the GameResponse to the list
                     gameResponses.add(gameResponse);
                 });
 
         return gameResponses;
+    }
+
+    /**
+     * Find the matching KenPom game data for a given API game
+     */
+    private KenPomGame findMatchingKenPomGame(Game game, List<KenPomGame> kenPomGames) {
+        if (kenPomGames == null || kenPomGames.isEmpty()) {
+            return null;
+        }
+
+        // Get team names from the API Game object
+        String homeTeamName = game.getTeams().getHome().getName();
+        String awayTeamName = game.getTeams().getAway().getName();
+
+        // Try to find the best matching KenPom game
+        return kenPomGames.stream()
+                .filter(kenPomGame -> {
+                    String kenPomHome = kenPomGame.getTeamHome();
+                    String kenPomAway = kenPomGame.getTeamAway();
+
+                    if (kenPomHome == null || kenPomAway == null) {
+                        return false;
+                    }
+
+                    // Normalize team names for better matching
+                    String normalizedHomeTeam = normalizeTeamName(homeTeamName);
+                    String normalizedAwayTeam = normalizeTeamName(awayTeamName);
+                    String normalizedKenPomHome = normalizeTeamName(kenPomHome);
+                    String normalizedKenPomAway = normalizeTeamName(kenPomAway);
+
+                    // Check regular and flipped team configurations
+                    return (matchTeams(normalizedKenPomHome, normalizedHomeTeam) &&
+                            matchTeams(normalizedKenPomAway, normalizedAwayTeam)) ||
+                            (matchTeams(normalizedKenPomHome, normalizedAwayTeam) &&
+                                    matchTeams(normalizedKenPomAway, normalizedHomeTeam));
+                })
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Normalize team name by removing common suffixes and conference indicators.
+     */
+    private String normalizeTeamName(String teamName) {
+        if (teamName == null) return "";
+
+        // Convert to lowercase and trim
+        String normalized = teamName.toLowerCase().trim();
+
+        // Remove common suffixes like "Rams", "Bulldogs", etc.
+        int spaceIdx = normalized.lastIndexOf(' ');
+        if (spaceIdx > 0 && spaceIdx < normalized.length() - 1) {
+            String lastWord = normalized.substring(spaceIdx + 1);
+            // If last word appears to be a mascot/suffix, remove it
+            if (!lastWord.contains(".") && lastWord.length() > 2) {
+                normalized = normalized.substring(0, spaceIdx);
+            }
+        }
+
+        // Remove conference designations like "B10-T", "ACC-T", etc.
+        normalized = normalized.replaceAll("\\s+[a-z0-9]+-t$", "");
+
+        return normalized;
+    }
+
+    /**
+     * Check if two team names match.
+     */
+    private boolean matchTeams(String team1, String team2) {
+        // Direct match
+        if (team1.equals(team2)) {
+            return true;
+        }
+
+        // Handle St. vs Saint variations
+        String processed1 = team1.replace("st.", "saint").replace("saint", "st");
+        String processed2 = team2.replace("st.", "saint").replace("saint", "st");
+
+        if (processed1.equals(processed2)) {
+            return true;
+        }
+
+        // Check if one name contains the core part of the other
+        String[] words1 = processed1.split("\\s+");
+        String[] words2 = processed2.split("\\s+");
+
+        // Get the most significant word (usually the first one, except for cases like "North Carolina")
+        String core1 = words1.length > 0 ? words1[words1.length > 1 ? 1 : 0] : "";
+        String core2 = words2.length > 0 ? words2[words2.length > 1 ? 1 : 0] : "";
+
+        // If core words are substantial (to avoid generic matches), check if they match
+        if (core1.length() > 3 && core2.length() > 3) {
+            return core1.equals(core2);
+        }
+
+        // One name substantially contains the other
+        return (processed1.length() > 4 && processed2.contains(processed1)) ||
+                (processed2.length() > 4 && processed1.contains(processed2));
+    }
+
+    /**
+     * Create predictions based on KenPom data
+     */
+    private Predictions createPredictionsFromKenPom(KenPomGame kenPomGame, Odds odds, String homeTeam, String awayTeam) {
+        Predictions predictions = new Predictions();
+        Double getPredictedMOV = kenPomGame.getPredictedMOV();
+        Double getHomeSpread = Double.valueOf(odds.getSpreadHome());
+        Double getAwaySpread = Double.parseDouble(odds.getSpreadAway());
+        Double getMoneylineHome = setImpliedOdds(Double.parseDouble(odds.getMoneylineHome()));
+        Double getMoneylineAway = setImpliedOdds(Double.parseDouble(odds.getMoneylineAway()));
+        Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
+
+        if (Objects.equals(homeTeam, kenPomGame.getPredictedWinner()))
+        {
+            if (getMoneylineHome < getPredictedWinProb)
+            {
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome);
+            }
+            else if (getMoneylineAway > (100 - getPredictedWinProb)){
+                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
+            }
+            else
+            {
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway);
+            }
+
+            getPredictedMOV = -getPredictedMOV;
+            if (getPredictedMOV > getHomeSpread)
+            {
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + -getPredictedMOV);
+            }
+            else if (getPredictedMOV < getHomeSpread)
+            {
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + getPredictedMOV);
+            }
+            else
+            {
+                predictions.setSpreadPrediction("No spread value available");
+            }
+        }
+        else if (Objects.equals(awayTeam, kenPomGame.getPredictedWinner()))
+        {
+            if (getMoneylineAway < getPredictedWinProb)
+            {
+                predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway);
+            }
+            else if (getMoneylineHome > (100 - getPredictedWinProb)){
+                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
+            }
+            else
+            {
+                predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome);
+            }
+
+            getPredictedMOV = -getPredictedMOV;
+            if (getPredictedMOV > getAwaySpread)
+            {
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + -getPredictedMOV);
+            }
+            else if (getPredictedMOV < getAwaySpread)
+            {
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + getPredictedMOV);
+            }
+            else
+            {
+                predictions.setSpreadPrediction("No spread value available");
+            }
+        }
+        else
+        {
+            predictions.setSpreadPrediction("No spread value available");
+        }
+
+        return predictions;
+    }
+
+    private Double setImpliedOdds(double odds) {
+        return 1 / odds * 100;
     }
 
     private Odds getOdds(Game game) {
@@ -127,6 +330,8 @@ public class JumperServiceImpl implements JumperService {
 
     private Odds getOddForAsianHandicapBet(Bet bet, Odds odds) {
         List<Value> values = bet.getValues(); // Get the values for the bet
+        Double getMoneylineHome = setImpliedOdds(Double.parseDouble(odds.getMoneylineHome()));
+        Double getMoneylineAway = setImpliedOdds(Double.parseDouble(odds.getMoneylineAway()));
 
         Value selectedHomeSpread = null;
         Value selectedAwaySpread = null;
@@ -173,6 +378,15 @@ public class JumperServiceImpl implements JumperService {
 
         // If we found a spread with the most even odds, set them to the Odds object
         if (selectedHomeSpread != null && selectedAwaySpread != null) {
+            double spreadNumber = Double.parseDouble(selectedHomeSpread.getValue().split(" ")[1]);
+            if (getMoneylineHome >= getMoneylineAway) {
+                selectedHomeSpread.setValue(String.valueOf(+spreadNumber));
+                selectedAwaySpread.setValue(String.valueOf(-spreadNumber));
+            }
+            else {
+                selectedHomeSpread.setValue(String.valueOf(-spreadNumber));
+                selectedAwaySpread.setValue(String.valueOf(+spreadNumber));
+            }
             odds.setSpreadHome(selectedHomeSpread.getValue());
             odds.setSpreadHomeOdds(selectedHomeSpread.getOdd());
             odds.setSpreadAway(selectedAwaySpread.getValue());
