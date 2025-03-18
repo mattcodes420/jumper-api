@@ -65,9 +65,16 @@ public class JumperServiceImpl implements JumperService {
                         String homeTeam = game.getTeams().getHome().getName();
                         String awayTeam = game.getTeams().getAway().getName();
                         // If we have KenPom data, we can also set predictions
-                        if (!Objects.equals(odds.getMoneylineAway(), "No odds currently available for this game"))
+                        if (!Objects.equals(odds.getMoneylineAway(), NO_ODDS_AVAILABLE))
                         {
                             Predictions predictions = createPredictionsFromKenPom(matchingKenPomGame, odds, homeTeam, awayTeam);
+                            gameResponse.setPredictions(predictions);
+                        }
+                        else {
+                            // Set default predictions if no odds are available
+                            Predictions predictions = new Predictions();
+                            predictions.setMoneylinePrediction(matchingKenPomGame.getPredictedWinner() + " has a predicted win probability of " + matchingKenPomGame.getWinProbability());
+                            predictions.setSpreadPrediction(matchingKenPomGame.getPredictedWinner() + " has a predicted margin of victory of " + matchingKenPomGame.getPredictedMOV());
                             gameResponse.setPredictions(predictions);
                         }
                     }
@@ -131,7 +138,7 @@ public class JumperServiceImpl implements JumperService {
         if (spaceIdx > 0 && spaceIdx < normalized.length() - 1) {
             String lastWord = normalized.substring(spaceIdx + 1);
             // If last word appears to be a mascot/suffix, remove it
-            if (!lastWord.contains(".") && lastWord.length() > 2) {
+            if (!lastWord.contains(".") && lastWord.length() > 2 && lastWord.contains("(")) {
                 normalized = normalized.substring(0, spaceIdx);
             }
         }
@@ -154,6 +161,8 @@ public class JumperServiceImpl implements JumperService {
         // Handle St. vs Saint variations
         String processed1 = team1.replace("st.", "saint").replace("saint", "st");
         String processed2 = team2.replace("st.", "saint").replace("saint", "st");
+        processed1 = team1.replace("state", "st");
+        processed2 = team2.replace("state", "st");
 
         if (processed1.equals(processed2)) {
             return true;
@@ -189,7 +198,11 @@ public class JumperServiceImpl implements JumperService {
         Double getMoneylineAway = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineAway())) * 10.0) / 10.0;
         Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
 
-        if (Objects.equals(homeTeam, kenPomGame.getPredictedWinner()))
+        String normalizedHomeTeam = normalizeTeamName(homeTeam);
+        String normalizedAwayTeam = normalizeTeamName(awayTeam);
+        String normalizedPredictedWinner = normalizeTeamName(kenPomGame.getPredictedWinner());
+
+        if (matchTeams(normalizedHomeTeam, normalizedPredictedWinner))
         {
             if (getMoneylineHome < getPredictedWinProb)
             {
@@ -200,24 +213,31 @@ public class JumperServiceImpl implements JumperService {
             }
             else
             {
-                predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
+                if (((100 - getPredictedWinProb) - getMoneylineAway) > 5)
+                {
+                    predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
+                }
+                else
+                {
+                    predictions.setMoneylinePrediction("Not enough value to bet on " + awayTeam);
+                }
             }
 
             getPredictedMOV = -getPredictedMOV;
             if (getPredictedMOV > getHomeSpread)
             {
-                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + -getPredictedMOV);
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + -getPredictedMOV);
             }
             else if (getPredictedMOV < getHomeSpread)
             {
-                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + getPredictedMOV);
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + getPredictedMOV);
             }
             else
             {
                 predictions.setSpreadPrediction("No spread value available");
             }
         }
-        else if (Objects.equals(awayTeam, kenPomGame.getPredictedWinner()))
+        else if (matchTeams(normalizedAwayTeam, normalizedPredictedWinner))
         {
             if (getMoneylineAway < getPredictedWinProb)
             {
@@ -228,17 +248,24 @@ public class JumperServiceImpl implements JumperService {
             }
             else
             {
-                predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
+                if (((100 - getPredictedWinProb) - getMoneylineHome) > 5)
+                {
+                    predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
+                }
+                else
+                {
+                    predictions.setMoneylinePrediction("Not enough value to bet on " + homeTeam);
+                }
             }
 
             getPredictedMOV = -getPredictedMOV;
             if (getPredictedMOV > getAwaySpread)
             {
-                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the MOV of " + -getPredictedMOV);
+                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + -getPredictedMOV);
             }
             else if (getPredictedMOV < getAwaySpread)
             {
-                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the MOV of " + getPredictedMOV);
+                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + getPredictedMOV);
             }
             else
             {
