@@ -28,6 +28,7 @@ public class JumperServiceImpl implements JumperService {
     private final SportsClient sportsClient;
     private final KenPomDataService kenPomDataService;
     private String NO_ODDS_AVAILABLE = "No odds currently available for this game";
+    private String NO_PREDICTIONS_AVAILABLE = "No predictions available for this game";
 
     @Autowired
     public JumperServiceImpl(SportsClient sportsClient, KenPomDataService kenPomDataService) {
@@ -209,90 +210,143 @@ public class JumperServiceImpl implements JumperService {
      */
     private Predictions createPredictionsFromKenPom(KenPomGame kenPomGame, Odds odds, String homeTeam, String awayTeam) {
         Predictions predictions = new Predictions();
-        Double getPredictedMOV = kenPomGame.getPredictedMOV();
-        Double getHomeSpread = Double.valueOf(odds.getSpreadHome());
-        Double getAwaySpread = Double.parseDouble(odds.getSpreadAway());
-        Double getMoneylineHome = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineHome())) * 10.0) / 10.0;
-        Double getMoneylineAway = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineAway())) * 10.0) / 10.0;
-        Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
 
-        String normalizedHomeTeam = normalizeTeamName(homeTeam);
-        String normalizedAwayTeam = normalizeTeamName(awayTeam);
-        String normalizedPredictedWinner = normalizeTeamName(kenPomGame.getPredictedWinner());
+        try {
+            // Check if vales are valid before parsing
+            String spreadHome = odds.getSpreadHome();
+            String spreadAway = odds.getSpreadAway();
+            String moneylineHome = odds.getMoneylineHome();
+            String moneylineAway = odds.getMoneylineAway();
+            String winProbability = kenPomGame.getWinProbability();
 
-        if (matchTeams(normalizedHomeTeam, normalizedPredictedWinner))
-        {
-            if (getMoneylineHome < getPredictedWinProb)
-            {
-                predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
+            // Validate if any required value is missing
+            if (spreadHome == null || spreadHome.isEmpty() || spreadHome.equals(NO_ODDS_AVAILABLE) ||
+                    spreadAway == null || spreadAway.isEmpty() || spreadAway.equals(NO_ODDS_AVAILABLE) ||
+                    moneylineHome == null || moneylineHome.isEmpty() || moneylineHome.equals(NO_ODDS_AVAILABLE) ||
+                    moneylineAway == null || moneylineAway.isEmpty() || moneylineAway.equals(NO_ODDS_AVAILABLE) ||
+                    winProbability == null || winProbability.isEmpty()) {
+
+                // Set default predictions if any data is missing
+                String getPredictedWinner = (kenPomGame.getPredictedWinner() == null || kenPomGame.getPredictedWinner().isEmpty())
+                        ? NO_PREDICTIONS_AVAILABLE
+                        : kenPomGame.getPredictedWinner();
+                winProbability = (kenPomGame.getWinProbability() == null || kenPomGame.getWinProbability().isEmpty())
+                        ? NO_PREDICTIONS_AVAILABLE
+                        : kenPomGame.getWinProbability();
+                String getPredictedMOV = (kenPomGame.getPredictedMOV() == null)
+                        ? NO_PREDICTIONS_AVAILABLE
+                        : String.valueOf(kenPomGame.getPredictedMOV());
+
+                if (Objects.equals(getPredictedWinner, NO_PREDICTIONS_AVAILABLE)){
+                    predictions.setMoneylinePrediction(NO_PREDICTIONS_AVAILABLE);
+                    predictions.setSpreadPrediction(NO_PREDICTIONS_AVAILABLE);
+                }
+                else {
+                    if (Objects.equals(winProbability, NO_PREDICTIONS_AVAILABLE)) {
+                        predictions.setMoneylinePrediction(getPredictedWinner + " is the predicted winner. No win probability available.");
+                    }
+                    else {
+                        predictions.setMoneylinePrediction(getPredictedWinner + " has a predicted win probability of " + winProbability);
+                    }
+                    if (Objects.equals(getPredictedMOV, NO_PREDICTIONS_AVAILABLE)) {
+                        predictions.setSpreadPrediction(getPredictedWinner + " is the predicted winner. No margin of victory available.");
+                    }
+                    else {
+                        predictions.setSpreadPrediction(getPredictedWinner + " has a predicted margin of victory of " + getPredictedMOV);
+                    }
+                }
+                return predictions;
             }
-            else if (getMoneylineAway > (100 - getPredictedWinProb)){
-                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
-            }
-            else
+
+            Double getPredictedMOV = kenPomGame.getPredictedMOV();
+            Double getHomeSpread = Double.valueOf(odds.getSpreadHome());
+            Double getAwaySpread = Double.parseDouble(odds.getSpreadAway());
+            Double getMoneylineHome = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineHome())) * 10.0) / 10.0;
+            Double getMoneylineAway = Math.round(setImpliedOdds(Double.parseDouble(odds.getMoneylineAway())) * 10.0) / 10.0;
+            Double getPredictedWinProb = Double.valueOf(kenPomGame.getWinProbability().split("%")[0]);
+
+            String normalizedHomeTeam = normalizeTeamName(homeTeam);
+            String normalizedAwayTeam = normalizeTeamName(awayTeam);
+            String normalizedPredictedWinner = normalizeTeamName(kenPomGame.getPredictedWinner());
+
+            if (matchTeams(normalizedHomeTeam, normalizedPredictedWinner))
             {
-                if (((100 - getPredictedWinProb) - getMoneylineAway) > 5)
+                if (getMoneylineHome < getPredictedWinProb)
                 {
-                    predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
+                    predictions.setMoneylinePrediction(homeTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
+                }
+                else if (getMoneylineAway > (100 - getPredictedWinProb)){
+                    predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
                 }
                 else
                 {
-                    predictions.setMoneylinePrediction("Not enough value to bet on " + awayTeam);
+                    if (((100 - getPredictedWinProb) - getMoneylineAway) > 5)
+                    {
+                        predictions.setMoneylinePrediction(awayTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
+                    }
+                    else
+                    {
+                        predictions.setMoneylinePrediction("Not enough value to bet on " + awayTeam);
+                    }
+                }
+
+                getPredictedMOV = -getPredictedMOV;
+                if (getPredictedMOV > getHomeSpread)
+                {
+                    predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + -getPredictedMOV);
+                }
+                else if (getPredictedMOV < getHomeSpread)
+                {
+                    predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + getPredictedMOV);
+                }
+                else
+                {
+                    predictions.setSpreadPrediction("No spread value available");
                 }
             }
+            else if (matchTeams(normalizedAwayTeam, normalizedPredictedWinner))
+            {
+                if (getMoneylineAway < getPredictedWinProb)
+                {
+                    predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
+                }
+                else if (getMoneylineHome > (100 - getPredictedWinProb)){
+                    predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
+                }
+                else
+                {
+                    if (((100 - getPredictedWinProb) - getMoneylineHome) > 5)
+                    {
+                        predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
+                    }
+                    else
+                    {
+                        predictions.setMoneylinePrediction("Not enough value to bet on " + homeTeam);
+                    }
+                }
 
-            getPredictedMOV = -getPredictedMOV;
-            if (getPredictedMOV > getHomeSpread)
-            {
-                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + -getPredictedMOV);
-            }
-            else if (getPredictedMOV < getHomeSpread)
-            {
-                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + getPredictedMOV);
+                getPredictedMOV = -getPredictedMOV;
+                if (getPredictedMOV > getAwaySpread)
+                {
+                    predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + -getPredictedMOV);
+                }
+                else if (getPredictedMOV < getAwaySpread)
+                {
+                    predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + getPredictedMOV);
+                }
+                else
+                {
+                    predictions.setSpreadPrediction("No spread value available");
+                }
             }
             else
             {
                 predictions.setSpreadPrediction("No spread value available");
             }
-        }
-        else if (matchTeams(normalizedAwayTeam, normalizedPredictedWinner))
-        {
-            if (getMoneylineAway < getPredictedWinProb)
-            {
-                predictions.setMoneylinePrediction(awayTeam + " has best value at " + getPredictedWinProb + "% vs the moneyline implied odds of " + getMoneylineAway + "%");
-            }
-            else if (getMoneylineHome > (100 - getPredictedWinProb)){
-                predictions.setMoneylinePrediction("Both moneyline bets are overvalued");
-            }
-            else
-            {
-                if (((100 - getPredictedWinProb) - getMoneylineHome) > 5)
-                {
-                    predictions.setMoneylinePrediction(homeTeam + " has best value at " + (100 - getPredictedWinProb) + "% vs the moneyline implied odds of " + getMoneylineHome + "%");
-                }
-                else
-                {
-                    predictions.setMoneylinePrediction("Not enough value to bet on " + homeTeam);
-                }
-            }
-
-            getPredictedMOV = -getPredictedMOV;
-            if (getPredictedMOV > getAwaySpread)
-            {
-                predictions.setSpreadPrediction(homeTeam + " has best value at " + getHomeSpread + " vs the spread of " + -getPredictedMOV);
-            }
-            else if (getPredictedMOV < getAwaySpread)
-            {
-                predictions.setSpreadPrediction(awayTeam + " has best value at " + getAwaySpread + " vs the spread of " + getPredictedMOV);
-            }
-            else
-            {
-                predictions.setSpreadPrediction("No spread value available");
-            }
-        }
-        else
-        {
-            predictions.setSpreadPrediction("No spread value available");
+        } catch (Exception e) {
+            // Fallback if any exception occurs while parsing KenPom data
+            predictions.setMoneylinePrediction("Unable to calculate predictions due to data error");
+            predictions.setSpreadPrediction("Unable to calculate predictions due to data error");
         }
 
         return predictions;
