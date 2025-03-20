@@ -133,6 +133,10 @@ public class JumperServiceImpl implements JumperService {
             teamName = "St. John's (N.Y.)";
         }
 
+        if (teamName.toLowerCase().contains("vcu")){
+            teamName = "VCU Rams";
+        }
+
         if (teamName.toLowerCase().contains("byu")){
             teamName = "Brigham Young";
         }
