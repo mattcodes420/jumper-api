@@ -128,6 +128,17 @@ public class JumperServiceImpl implements JumperService {
      * Normalize team name by removing common suffixes and conference indicators.
      */
     private String normalizeTeamName(String teamName) {
+
+        if (teamName == "St. John's (N.Y.)"){
+            teamName = "St. John's";
+        }
+
+        if (teamName == "VCU Rams"){
+            teamName = "VCU";
+        }
+        if (teamName == "Siu Edwardsville"){
+            teamName = "Siu";
+        }
         if (teamName == null) return "";
 
         // Convert to lowercase and trim
