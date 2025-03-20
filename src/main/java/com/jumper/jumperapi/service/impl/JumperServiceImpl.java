@@ -139,6 +139,9 @@ public class JumperServiceImpl implements JumperService {
         if (teamName.toLowerCase().contains("siu")){
             teamName = "Siu Edwardsville";
         }
+        if (teamName.toLowerCase().contains("nebraska")){
+            teamName = "Nebraska O.";
+        }
         if (teamName == null) return "";
 
         // Convert to lowercase and trim
