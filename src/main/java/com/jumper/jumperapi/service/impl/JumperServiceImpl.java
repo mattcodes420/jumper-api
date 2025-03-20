@@ -129,15 +129,15 @@ public class JumperServiceImpl implements JumperService {
      */
     private String normalizeTeamName(String teamName) {
 
-        if (teamName == "St. John's (N.Y.)"){
-            teamName = "St. John's";
+        if (teamName.toLowerCase().contains("john's")){
+            teamName = "St. John's (N.Y.)";
         }
 
-        if (teamName == "VCU Rams"){
-            teamName = "VCU";
+        if (teamName.toLowerCase().contains("byu")){
+            teamName = "Brigham Young";
         }
-        if (teamName == "Siu Edwardsville"){
-            teamName = "Siu";
+        if (teamName.toLowerCase().contains("siu")){
+            teamName = "Siu Edwardsville";
         }
         if (teamName == null) return "";
 
