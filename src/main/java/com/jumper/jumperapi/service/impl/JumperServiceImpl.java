@@ -164,6 +164,9 @@ public class JumperServiceImpl implements JumperService {
         // Remove conference designations like "B10-T", "ACC-T", etc.
         normalized = normalized.replaceAll("\\s+[a-z0-9]+-t$", "");
 
+        // Remove apostrophes
+        normalized = normalized.replace("'", "");
+
         return normalized;
     }
 
