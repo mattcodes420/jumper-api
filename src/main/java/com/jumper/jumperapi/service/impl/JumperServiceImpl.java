@@ -144,6 +144,12 @@ public class JumperServiceImpl implements JumperService {
         if (teamName.toLowerCase().contains("nebraska")){
             teamName = "Nebraska O.";
         }
+        if (teamName.toLowerCase().contains("conn")){
+            teamName = "UConn";
+        }
+        if (teamName.toLowerCase().contains("bryant")){
+            teamName = "Bryant University";
+        }
         if (Objects.equals(teamName.toLowerCase(), "mississippi")){
             teamName = "Ole Miss";
         }
