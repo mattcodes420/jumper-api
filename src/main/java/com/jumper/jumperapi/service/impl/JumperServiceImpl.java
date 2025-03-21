@@ -132,11 +132,9 @@ public class JumperServiceImpl implements JumperService {
         if (teamName.toLowerCase().contains("john's")){
             teamName = "St. John's (N.Y.)";
         }
-
         if (teamName.toLowerCase().contains("vcu")){
             teamName = "VCU Rams";
         }
-
         if (teamName.toLowerCase().contains("byu")){
             teamName = "Brigham Young";
         }
@@ -145,6 +143,9 @@ public class JumperServiceImpl implements JumperService {
         }
         if (teamName.toLowerCase().contains("nebraska")){
             teamName = "Nebraska O.";
+        }
+        if (Objects.equals(teamName.toLowerCase(), "mississippi")){
+            teamName = "Ole Miss";
         }
         if (teamName == null) return "";
 
