@@ -74,8 +74,7 @@ public class JumperServiceImpl implements JumperService {
                         else {
                             // Set default predictions if no odds are available
                             Predictions predictions = new Predictions();
-                            predictions.setMoneylinePrediction(matchingKenPomGame.getPredictedWinner() + " has a predicted win probability of " + matchingKenPomGame.getWinProbability());
-                            predictions.setSpreadPrediction(matchingKenPomGame.getPredictedWinner() + " has a predicted margin of victory of " + matchingKenPomGame.getPredictedMOV());
+                            setDefaultPredictions(matchingKenPomGame, predictions);
                             gameResponse.setPredictions(predictions);
                         }
                     }
@@ -227,34 +226,7 @@ public class JumperServiceImpl implements JumperService {
                     winProbability == null || winProbability.isEmpty()) {
 
                 // Set default predictions if any data is missing
-                String getPredictedWinner = (kenPomGame.getPredictedWinner() == null || kenPomGame.getPredictedWinner().isEmpty())
-                        ? NO_PREDICTIONS_AVAILABLE
-                        : kenPomGame.getPredictedWinner();
-                winProbability = (kenPomGame.getWinProbability() == null || kenPomGame.getWinProbability().isEmpty())
-                        ? NO_PREDICTIONS_AVAILABLE
-                        : kenPomGame.getWinProbability();
-                String getPredictedMOV = (kenPomGame.getPredictedMOV() == null)
-                        ? NO_PREDICTIONS_AVAILABLE
-                        : String.valueOf(kenPomGame.getPredictedMOV());
-
-                if (Objects.equals(getPredictedWinner, NO_PREDICTIONS_AVAILABLE)){
-                    predictions.setMoneylinePrediction(NO_PREDICTIONS_AVAILABLE);
-                    predictions.setSpreadPrediction(NO_PREDICTIONS_AVAILABLE);
-                }
-                else {
-                    if (Objects.equals(winProbability, NO_PREDICTIONS_AVAILABLE)) {
-                        predictions.setMoneylinePrediction(getPredictedWinner + " is the predicted winner. No win probability available.");
-                    }
-                    else {
-                        predictions.setMoneylinePrediction(getPredictedWinner + " has a predicted win probability of " + winProbability);
-                    }
-                    if (Objects.equals(getPredictedMOV, NO_PREDICTIONS_AVAILABLE)) {
-                        predictions.setSpreadPrediction(getPredictedWinner + " is the predicted winner. No margin of victory available.");
-                    }
-                    else {
-                        predictions.setSpreadPrediction(getPredictedWinner + " has a predicted margin of victory of " + getPredictedMOV);
-                    }
-                }
+                setDefaultPredictions(kenPomGame, predictions);
                 return predictions;
             }
 
@@ -350,6 +322,38 @@ public class JumperServiceImpl implements JumperService {
         }
 
         return predictions;
+    }
+
+    private void setDefaultPredictions(KenPomGame kenPomGame, Predictions predictions) {
+        String winProbability;
+        String getPredictedWinner = (kenPomGame.getPredictedWinner() == null || kenPomGame.getPredictedWinner().isEmpty())
+                ? NO_PREDICTIONS_AVAILABLE
+                : kenPomGame.getPredictedWinner();
+        winProbability = (kenPomGame.getWinProbability() == null || kenPomGame.getWinProbability().isEmpty())
+                ? NO_PREDICTIONS_AVAILABLE
+                : kenPomGame.getWinProbability();
+        String getPredictedMOV = (kenPomGame.getPredictedMOV() == null)
+                ? NO_PREDICTIONS_AVAILABLE
+                : String.valueOf(kenPomGame.getPredictedMOV());
+
+        if (Objects.equals(getPredictedWinner, NO_PREDICTIONS_AVAILABLE)){
+            predictions.setMoneylinePrediction(NO_PREDICTIONS_AVAILABLE);
+            predictions.setSpreadPrediction(NO_PREDICTIONS_AVAILABLE);
+        }
+        else {
+            if (Objects.equals(winProbability, NO_PREDICTIONS_AVAILABLE)) {
+                predictions.setMoneylinePrediction(getPredictedWinner + " is the predicted winner. No win probability available.");
+            }
+            else {
+                predictions.setMoneylinePrediction(getPredictedWinner + " has a predicted win probability of " + winProbability);
+            }
+            if (Objects.equals(getPredictedMOV, NO_PREDICTIONS_AVAILABLE)) {
+                predictions.setSpreadPrediction(getPredictedWinner + " is the predicted winner. No margin of victory available.");
+            }
+            else {
+                predictions.setSpreadPrediction(getPredictedWinner + " has a predicted margin of victory of " + getPredictedMOV);
+            }
+        }
     }
 
     private Double setImpliedOdds(double odds) {
